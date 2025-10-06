@@ -27,7 +27,58 @@ label { font-weight: 500; }
 <body>
 <div class="container">
 <h1>HOME NETWORK</h1>
-<p>Includes 3 minutes free access for new devices 🎁</p>
+
+<!-- Free 2-minute access button -->
+<div style="text-align:center; margin:40px;">
+    <h3 style="font-family: Arial, sans-serif; color: #333;">Get 2 Minutes Free Access 🎁</h3>
+    <button id="freeAccessBtn" style="
+        background-color: #28a745; 
+        color: white; 
+        border: none; 
+        padding: 15px 30px; 
+        font-size: 18px; 
+        font-weight: bold;
+        border-radius: 12px;
+        cursor: pointer;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        transition: all 0.3s ease;
+    ">
+        Connect 2 Minutes Free
+    </button>
+</div>
+
+<script>
+document.getElementById('freeAccessBtn').addEventListener('click', () => {
+    const deviceMac = "demo_mac_001";
+
+    fetch('payment.php', {
+        method: 'POST',
+        headers: {'Content-Type':'application/x-www-form-urlencoded'},
+        body: `type=free&mac=${deviceMac}`
+    })
+    .then(res => res.json())
+    .then(data => {
+        if(data.success){
+            alert(data.message);
+            window.location.href = "wifi_home.html";
+        } else {
+            alert("Error granting free access");
+        }
+    })
+    .catch(err => console.error(err));
+});
+
+// Add hover effect
+const btn = document.getElementById('freeAccessBtn');
+btn.addEventListener('mouseover', () => {
+    btn.style.backgroundColor = "#218838";
+    btn.style.transform = "scale(1.05)";
+});
+btn.addEventListener('mouseout', () => {
+    btn.style.backgroundColor = "#28a745";
+    btn.style.transform = "scale(1)";
+});
+</script>
 
 <table>
 <thead>
@@ -147,4 +198,3 @@ window.onclick=function(event){ if(event.target===modal){ closeModal(); } }
 </script>
 </body>
 </html>
-
