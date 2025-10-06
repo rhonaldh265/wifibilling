@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WiFi Billing System</title>
+<style>
+body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(to bottom, #009966 75%, #ff3300 100%); margin: 0; padding: 0; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
+.container { width: 90%; max-width: 800px; padding: 25px; border-radius: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.2); }
+h1 { text-align: center; color: #0078D7; }
+p { text-align: center; color: #333; }
+table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #fafafa; border-radius: 10px; overflow: hidden; }
+th, td { padding: 12px; text-align: center; }
+th { background: #0078D7; color: white; }
+tr:nth-child(even) { background: #f1f1f1; }
+button { padding: 8px 16px; border: none; background: #0078D7; color: white; border-radius: 8px; cursor: pointer; transition: 0.3s; }
+button:hover { background: #005bb5; transform: scale(1.05); }
+.modal { display: none; position: fixed; z-index: 999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); justify-content: center; align-items: center; }
+.modal-content { background: #e7f3ff; padding: 25px; border-radius: 15px; width: 90%; max-width: 400px; box-shadow: 0 0 20px rgba(0,0,0,0.2); text-align: left; position: relative; }
+.close-btn { position: absolute; top: 10px; right: 15px; background: transparent; border: none; color: #333; font-size: 20px; cursor: pointer; }
+input, textarea { width: 100%; margin-top: 6px; margin-bottom: 12px; padding: 10px; border: 1px solid #ccc; border-radius: 6px; }
+label { font-weight: 500; }
+.footer { text-align: center; color: #555; margin-top: 25px; font-size: 14px; }
+#transactionsTable { margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="container">
+<h1>HOME NETWORK</h1>
+<p>Includes 3 minutes free access for new devices 🎁</p>
+
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Price (Ksh)</th>
+<th>Duration</th>
+<th>Bonus</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="packageTable"></tbody>
+</table>
+
+<h3>Paid Transactions</h3>
+<table id="transactionsTable">
+<thead>
+<tr>
+<th>Name</th>
+<th>Phone</th>
+<th>Amount</th>
+<th>Time</th>
+</tr>
+</thead>
+<tbody id="transactionsBody"></tbody>
+</table>
+
+<div class="footer">© 2025 WiFi Billing System — Ready for M-Pesa Integration</div>
+</div>
+
+<div class="modal" id="paymentModal">
+<div class="modal-content">
+<button class="close-btn" onclick="closeModal()">&times;</button>
+<h3>Complete Purchase</h3>
+<label>Customer name</label>
+<input type="text" placeholder="e.g. John Mwangi" id="custName">
+<label>Phone (M-Pesa number)</label>
+<input type="text" placeholder="07XXXXXXXX" id="custPhone">
+<label>Agreement</label><br>
+<input type="checkbox" id="agree"> I agree<br><br>
+<label>Notes (optional)</label>
+<textarea placeholder="e.g. Guest Wi-Fi" id="custNotes"></textarea>
+<button onclick="resetForm()">Reset</button>
+<button onclick="initiatePayment()">Initiate Payment</button>
+</div>
+</div>
+
+<script>
+const packages = [
+{ name: "Basic", price: 5, duration: "30 min", bonus: "—" },
+{ name: "Standard", price: 10, duration: "1 hour", bonus: "5 min" },
+{ name: "Bronze", price: 20, duration: "2 hours", bonus: "10 min" },
+{ name: "Silver", price: 50, duration: "6 hours", bonus: "15 min" },
+{ name: "Gold", price: 100, duration: "1 day", bonus: "30 min" },
+{ name: "Platinum", price: 200, duration: "2 days", bonus: "1 hour" }
+];
+
+const table = document.getElementById("packageTable");
+const transactionsBody = document.getElementById("transactionsBody");
+const modal = document.getElementById("paymentModal");
+let selectedPackage = null;
+
+packages.forEach((pkg, index) => {
+const row = document.createElement("tr");
+row.innerHTML = `<td>${pkg.name}</td><td>${pkg.price}</td><td>${pkg.duration}</td><td>${pkg.bonus}</td><td><button onclick="openModal(${index})">Buy Now</button></td>`;
+table.appendChild(row);
+});
+
+function openModal(index){ selectedPackage = packages[index]; modal.style.display = "flex"; }
+function closeModal(){ modal.style.display = "none"; resetForm(); }
+function resetForm(){ document.getElementById("custName").value = ""; document.getElementById("custPhone").value = ""; document.getElementById("custNotes").value = ""; document.getElementById("agree").checked = false; }
+
+function initiatePayment(){
+let name = document.getElementById("custName").value.trim();
+let phone = document.getElementById("custPhone").value.trim();
+
+if(!name || !phone || !document.getElementById("agree").checked){ alert("Complete all fields and agree to terms."); return; }
+
+let amount = selectedPackage.price;
+if(phone.startsWith("0")) phone = "254"+phone.substring(1);
+
+fetch('payment.php', {
+method: 'POST',
+headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+body: `amount=${amount}&phone=${phone}&name=${name}`
+})
+.then(res => res.json())
+.then(data => {
+if(data.ResponseCode==="0"){
+alert("STK Push sent! Waiting for payment confirmation...");
+
+const checkoutID = data.CheckoutRequestID;
+const interval = setInterval(()=>{
+fetch(`payment.php?checkoutID=${checkoutID}`)
+.then(res=>res.json())
+.then(status=>{
+if(status.ResultCode===0){
+clearInterval(interval);
+alert("Payment successful!");
+const newRow = document.createElement("tr");
+const now = new Date();
+newRow.innerHTML = `<td>${name}</td><td>${phone}</td><td>${amount}</td><td>${now.toLocaleString()}</td>`;
+transactionsBody.appendChild(newRow);
+}else if(status.ResultCode!==null){
+clearInterval(interval);
+alert("Payment failed or cancelled.");
+}
+}).catch(err=>console.log(err));
+},3000);
+
+}else{ alert("Error initiating payment: "+(data.errorMessage||data.ResponseDescription)); }
+});
+closeModal();
+}
+
+window.onclick=function(event){ if(event.target===modal){ closeModal(); } }
+</script>
+</body>
+</html>
+
