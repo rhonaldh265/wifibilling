@@ -170,23 +170,33 @@ if(data.ResponseCode==="0"){
 alert("STK Push sent! Waiting for payment confirmation...");
 
 const checkoutID = data.CheckoutRequestID;
-const interval = setInterval(()=>{
-fetch(`payment.php?checkoutID=${checkoutID}`)
-.then(res=>res.json())
-.then(status=>{
-if(status.ResultCode===0){
-clearInterval(interval);
-alert("Payment successful!");
-const newRow = document.createElement("tr");
-const now = new Date();
-newRow.innerHTML = `<td>${name}</td><td>${phone}</td><td>${amount}</td><td>${now.toLocaleString()}</td>`;
-transactionsBody.appendChild(newRow);
-}else if(status.ResultCode!==null){
-clearInterval(interval);
-alert("Payment failed or cancelled.");
-}
-}).catch(err=>console.log(err));
-},3000);
+const interval = setInterval(() => {
+    fetch(`payment.php?checkoutID=${checkoutID}`)
+    .then(res => res.json())
+    .then(status => {
+        // Check if we have a result code
+        if(status.ResultCode !== undefined && status.ResultCode !== null) {
+            clearInterval(interval);
+            
+            if(status.ResultCode === "0" || status.ResultCode === 0) {
+                // Success
+                alert("Payment successful!");
+                const newRow = document.createElement("tr");
+                const now = new Date();
+                newRow.innerHTML = `<td>${name}</td><td>${phone}</td><td>${amount}</td><td>${now.toLocaleString()}</td>`;
+                transactionsBody.appendChild(newRow);
+            } else {
+                // Any other result code means failure
+                alert("Payment failed or cancelled.");
+            }
+        }
+        // If ResultCode is null/undefined, continue polling
+    }).catch(err => {
+        console.log(err);
+        clearInterval(interval);
+        alert("Error checking payment status.");
+    });
+}, 3000);
 
 }else{ alert("Error initiating payment: "+(data.errorMessage||data.ResponseDescription)); }
 });
