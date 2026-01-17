@@ -16,7 +16,7 @@ if($_SERVER['REQUEST_METHOD']==='POST'){
     $Amount = $_POST['amount'];
     $PhoneNumber = $_POST['phone'];
     $CustomerName = $_POST['name'];
-    $AccountReference = "WiFiBilling";
+    $AccountReference = "Home network";
     $TransactionDesc = "WiFi Package Purchase";
     $Timestamp = date('YmdHis');
 
