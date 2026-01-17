@@ -174,7 +174,7 @@ const interval = setInterval(()=>{
 fetch(`payment.php?checkoutID=${checkoutID}`)
 .then(res=>res.json())
 .then(status=>{
-if(status.ResultCode==="1"){
+if(status.ResultCode==="0"){
 clearInterval(interval);
 alert("Payment successful!");
 const newRow = document.createElement("tr");
