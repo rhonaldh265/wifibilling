@@ -151,51 +151,84 @@ function closeModal(){ modal.style.display = "none"; resetForm(); }
 function resetForm(){ document.getElementById("custName").value = ""; document.getElementById("custPhone").value = ""; document.getElementById("custNotes").value = ""; document.getElementById("agree").checked = false; }
 
 function initiatePayment(){
-let name = document.getElementById("custName").value.trim();
-let phone = document.getElementById("custPhone").value.trim();
+    let name = document.getElementById("custName").value.trim();
+    let phone = document.getElementById("custPhone").value.trim();
 
-if(!name || !phone || !document.getElementById("agree").checked){ alert("Complete all fields and agree to terms."); return; }
+    if(!name || !phone || !document.getElementById("agree").checked){ 
+        alert("Complete all fields and agree to terms."); 
+        return; 
+    }
 
-let amount = selectedPackage.price;
-if(phone.startsWith("0")) phone = "254"+phone.substring(1);
+    let amount = selectedPackage.price;
+    if(phone.startsWith("0")) phone = "254"+phone.substring(1);
 
-fetch('payment.php', {
-method: 'POST',
-headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-body: `amount=${amount}&phone=${phone}&name=${name}`
-})
-.then(res => res.json())
-.then(data => {
-if(data.ResponseCode==="0"){
-alert("STK Push sent! Waiting for payment confirmation...");
-
-const checkoutID = data.CheckoutRequestID;
-const interval = setInterval(() => {
-    fetch(`payment.php?checkoutID=${checkoutID}`)
+    fetch('payment.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `amount=${amount}&phone=${phone}&name=${name}`
+    })
     .then(res => res.json())
-    .then(status => {
-        // Check if we have a result code
-        if(status.ResultCode !== undefined && status.ResultCode !== null) {
-            clearInterval(interval);
+    .then(data => {
+        console.log("Initial response:", data); // Debug log
+        
+        if(data.ResponseCode === "0" || data.responseCode === "0"){
+            alert("STK Push sent! Waiting for payment confirmation...");
+
+            const checkoutID = data.CheckoutRequestID || data.checkoutRequestID;
+            let pollCount = 0;
+            const maxPolls = 20; // 20 attempts * 3 seconds = 60 seconds total
             
-            if(status.ResultCode === "0" || status.ResultCode === 0) {
-                // Success
-                alert("Payment successful!");
-                const newRow = document.createElement("tr");
-                const now = new Date();
-                newRow.innerHTML = `<td>${name}</td><td>${phone}</td><td>${amount}</td><td>${now.toLocaleString()}</td>`;
-                transactionsBody.appendChild(newRow);
-            } else {
-                // Any other result code means failure
-                alert("Payment failed or cancelled.");
-            }
+            const interval = setInterval(() => {
+                pollCount++;
+                
+                if(pollCount > maxPolls) {
+                    clearInterval(interval);
+                    alert("Payment confirmation timeout. Please check with your MPESA.");
+                    return;
+                }
+                
+                fetch(`payment.php?checkoutID=${checkoutID}`)
+                .then(res => res.json())
+                .then(status => {
+                    console.log("Polling response:", status); // Debug log
+                    
+                    // Check for success response
+                    if(status.ResultCode === "0" || status.resultCode === "0") {
+                        clearInterval(interval);
+                        alert("Payment successful!");
+                        const newRow = document.createElement("tr");
+                        const now = new Date();
+                        newRow.innerHTML = `<td>${name}</td><td>${phone}</td><td>${amount}</td><td>${now.toLocaleString()}</td>`;
+                        transactionsBody.appendChild(newRow);
+                    } 
+                    // Check for failure response
+                    else if(status.ResultCode || status.resultCode) {
+                        clearInterval(interval);
+                        const resultCode = status.ResultCode || status.resultCode;
+                        if(resultCode !== "0") {
+                            alert("Payment failed or cancelled.");
+                        }
+                    }
+                    // If no resultCode yet, continue polling
+                }).catch(err => {
+                    console.error("Polling error:", err);
+                    clearInterval(interval);
+                    alert("Error checking payment status.");
+                });
+            }, 3000); // Poll every 3 seconds
+
+        } else { 
+            const errorMsg = data.errorMessage || data.ResponseDescription || "Unknown error";
+            alert("Error initiating payment: " + errorMsg); 
         }
-        // If ResultCode is null/undefined, continue polling
-    }).catch(err => {
-        console.log(err);
-        clearInterval(interval);
-        alert("Error checking payment status.");
+    })
+    .catch(err => {
+        console.error("Fetch error:", err);
+        alert("Network error. Please try again.");
     });
+    
+    closeModal();
+}
 }, 3000);
 
 }else{ alert("Error initiating payment: "+(data.errorMessage||data.ResponseDescription)); }
