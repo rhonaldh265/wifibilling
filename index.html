@@ -172,54 +172,88 @@ function initiatePayment(){
     .then(data => {
         console.log("Initial response:", data); // Debug log
         
-        if(data.ResponseCode === "0" || data.responseCode === "0"){
+        // Check for successful STK push initiation
+        if(data.ResponseCode === "0" || data.responseCode === "0" || data.ResponseCode === 0){
             alert("STK Push sent! Waiting for payment confirmation...");
 
-            const checkoutID = data.CheckoutRequestID || data.checkoutRequestID;
-            let pollCount = 0;
-            const maxPolls = 20; // 20 attempts * 3 seconds = 60 seconds total
+            const checkoutID = data.CheckoutRequestID || data.checkoutRequestID || data.CheckoutRequestId;
+            if (!checkoutID) {
+                alert("Error: No checkout ID received");
+                return;
+            }
             
-            const interval = setInterval(() => {
+            let pollCount = 0;
+            const maxPolls = 30; // 30 attempts * 3 seconds = 90 seconds total
+            
+            const pollPaymentStatus = () => {
                 pollCount++;
                 
                 if(pollCount > maxPolls) {
-                    clearInterval(interval);
+                    clearInterval(pollInterval);
                     alert("Payment confirmation timeout. Please check with your MPESA.");
                     return;
                 }
                 
-                fetch(`payment.php?checkoutID=${checkoutID}`)
+                console.log(`Polling attempt ${pollCount} for checkoutID: ${checkoutID}`);
+                
+                fetch(`payment.php?checkoutID=${encodeURIComponent(checkoutID)}&action=confirm`)
                 .then(res => res.json())
                 .then(status => {
-                    console.log("Polling response:", status); // Debug log
+                    console.log("Polling response:", status);
                     
-                    // Check for success response
-                    if(status.ResultCode === "0" || status.resultCode === "0") {
-                        clearInterval(interval);
-                        alert("Payment successful!");
+                    // Check if we have a valid result code
+                    if (status && status.ResultCode !== undefined && status.ResultCode !== null) {
+                        clearInterval(pollInterval);
+                        
+                        if(status.ResultCode === "0" || status.ResultCode === 0) {
+                            alert("✅ Payment successful! You can now connect to WiFi.");
+                            // Add transaction to table
+                            const newRow = document.createElement("tr");
+                            const now = new Date();
+                            newRow.innerHTML = `<td>${name}</td><td>${phone}</td><td>${amount}</td><td>${now.toLocaleString()}</td>`;
+                            transactionsBody.appendChild(newRow);
+                            // Optionally redirect to WiFi page
+                            // window.location.href = "wifi_home.html";
+                        } else {
+                            alert(`❌ Payment failed. Code: ${status.ResultCode}, Message: ${status.ResultDesc || 'Unknown error'}`);
+                        }
+                    }
+                    // Also check for alternate response format
+                    else if (status && status.resultCode !== undefined && status.resultCode !== null) {
+                        clearInterval(pollInterval);
+                        
+                        if(status.resultCode === "0" || status.resultCode === 0) {
+                            alert("✅ Payment successful! You can now connect to WiFi.");
+                            const newRow = document.createElement("tr");
+                            const now = new Date();
+                            newRow.innerHTML = `<td>${name}</td><td>${phone}</td><td>${amount}</td><td>${now.toLocaleString()}</td>`;
+                            transactionsBody.appendChild(newRow);
+                        } else {
+                            alert(`❌ Payment failed. Code: ${status.resultCode}, Message: ${status.resultDesc || 'Unknown error'}`);
+                        }
+                    }
+                    // Check for direct success message
+                    else if (status && status.success) {
+                        clearInterval(pollInterval);
+                        alert("✅ Payment successful! You can now connect to WiFi.");
                         const newRow = document.createElement("tr");
                         const now = new Date();
                         newRow.innerHTML = `<td>${name}</td><td>${phone}</td><td>${amount}</td><td>${now.toLocaleString()}</td>`;
                         transactionsBody.appendChild(newRow);
-                    } 
-                    // Check for failure response
-                    else if(status.ResultCode || status.resultCode) {
-                        clearInterval(interval);
-                        const resultCode = status.ResultCode || status.resultCode;
-                        if(resultCode !== "0") {
-                            alert("Payment failed or cancelled.");
-                        }
                     }
-                    // If no resultCode yet, continue polling
+                    // If still processing, continue polling
                 }).catch(err => {
                     console.error("Polling error:", err);
-                    clearInterval(interval);
-                    alert("Error checking payment status.");
+                    // Don't stop polling on network errors, continue trying
                 });
-            }, 3000); // Poll every 3 seconds
+            };
+            
+            // Start polling immediately and then every 3 seconds
+            const pollInterval = setInterval(pollPaymentStatus, 3000);
+            pollPaymentStatus(); // Immediate first check
 
         } else { 
-            const errorMsg = data.errorMessage || data.ResponseDescription || "Unknown error";
+            const errorMsg = data.errorMessage || data.ResponseDescription || data.message || "Unknown error";
             alert("Error initiating payment: " + errorMsg); 
         }
     })
@@ -227,6 +261,8 @@ function initiatePayment(){
         console.error("Fetch error:", err);
         alert("Network error. Please try again.");
     });
+    
+
     
     closeModal();
 }
